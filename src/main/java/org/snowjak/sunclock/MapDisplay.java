@@ -118,8 +118,8 @@ public class MapDisplay extends Canvas {
 					final Graphics2D saveGfx = saveImage.createGraphics();
 					saveGfx.setColor(Color.black);
 					saveGfx.clearRect(0, 0, mapWidth, mapHeight);
-					saveGfx.drawImage(mapImage, 0, 0, null);
-					saveGfx.drawImage(lightMap, 0, 0, null);
+					saveGfx.drawImage(mapImage, 0, 0, mapWidth, mapHeight, null);
+					saveGfx.drawImage(lightMap, 0, 0, mapWidth, mapHeight, null);
 					
 					try {
 						saveImageWithDialog(saveImage);
