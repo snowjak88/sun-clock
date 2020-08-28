@@ -3,31 +3,41 @@
  */
 package org.snowjak.sunclock;
 
-import static java.lang.Math.*;
+import static java.lang.Math.PI;
 import static java.lang.Math.asin;
 import static java.lang.Math.cos;
 import static java.lang.Math.floor;
 import static java.lang.Math.max;
 import static java.lang.Math.sin;
+import static java.lang.Math.sqrt;
 import static org.snowjak.sunclock.Util.degreesToRadians;
 import static org.snowjak.sunclock.Util.window;
 
 import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Clock;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,6 +46,13 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageTypeSpecifier;
+import javax.imageio.ImageWriter;
+import javax.swing.JFileChooser;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,6 +61,7 @@ import org.snowjak.sunclock.pool.Pool;
 import org.snowjak.sunclock.pool.Pools;
 import org.snowjak.sunclock.projection.Projection;
 
+import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -63,6 +81,9 @@ public class MapDisplay extends Canvas {
 	
 	private BufferedImage lightMap = null;
 	
+	private final JPopupMenu mapPopupMenu;
+	private final ActionListener mapPopupActionListener;
+	
 	private Projection projection;
 	private double resolution;
 	private BufferedImage mapImage;
@@ -79,6 +100,55 @@ public class MapDisplay extends Canvas {
 		Options.addUpdateListener(DefinedOption.LIGHT_RESOLUTION,
 				(oldRes, newRes) -> setLightMapResolution((Integer) newRes));
 		
+		mapPopupActionListener = new ActionListener() {
+			
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				
+				if (e.getActionCommand().equals("save")) {
+					
+					if (mapImage == null || lightMap == null)
+						return;
+						
+					//
+					// Create the image to save.
+					//
+					
+					final BufferedImage saveImage = new BufferedImage(mapWidth, mapHeight, BufferedImage.TYPE_INT_ARGB);
+					final Graphics2D saveGfx = saveImage.createGraphics();
+					saveGfx.setColor(Color.black);
+					saveGfx.clearRect(0, 0, mapWidth, mapHeight);
+					saveGfx.drawImage(mapImage, 0, 0, null);
+					saveGfx.drawImage(lightMap, 0, 0, null);
+					
+					try {
+						saveImageWithDialog(saveImage);
+					} catch (IllegalArgumentException ex) {
+						
+						LOG.error("Cannot save the current screen", ex);
+						JOptionPane.showInternalMessageDialog(null,
+								"Cannot save this image. For whatever reason, your Java environment doesn't have any compatible image-writers.",
+								"Cannot Save Image", JOptionPane.ERROR_MESSAGE);
+						
+					} catch (IOException ex) {
+						
+						LOG.error("Cannot save the current screen", ex);
+						JOptionPane.showInternalMessageDialog(null,
+								"Cannot save this image -- the selected file could not be written. Consult the log for details.",
+								"Cannot Save Image", JOptionPane.ERROR_MESSAGE);
+						
+					} finally {
+						saveGfx.dispose();
+					}
+				}
+			}
+		};
+		
+		mapPopupMenu = new JPopupMenu();
+		final JMenuItem saveAsItem = mapPopupMenu.add("Save as...");
+		saveAsItem.setActionCommand("save");
+		saveAsItem.addActionListener(mapPopupActionListener);
+		
 		addMouseListener(new MouseAdapter() {
 			
 			@Override
@@ -87,26 +157,19 @@ public class MapDisplay extends Canvas {
 				if (projection == null)
 					return;
 				
-				if (e.getPoint().x < 0 || e.getPoint().y < 0)
+				final int mouseX = e.getPoint().x - mapOffsetX;
+				final int mouseY = e.getPoint().y - mapOffsetY;
+				
+				if (mouseX < 0 || mouseY < 0)
 					return;
-				if (e.getPoint().x > mapWidth || e.getPoint().y > mapHeight)
+				if (mouseX > mapWidth || mouseY > mapHeight)
 					return;
 				
-				final Pool<DoublePair> pool = Pools.getPool(DoublePair.class);
-				final DoublePair xy = pool.getInstance();
+				if (e.getButton() == MouseEvent.BUTTON1)
+					logMapLatLong((double) mouseX / (double) mapWidth, 1d - (double) mouseY / (double) mapHeight);
 				
-				final double x = (double) e.getPoint().x / (double) mapWidth;
-				final double y = 1d - ((double) e.getPoint().y / (double) mapHeight);
-				
-				xy.set(x, y);
-				final DoublePair latLong = projection.transformXY_LatLong(xy);
-				
-				final double exposure = calculateSunExposure(latLong, ZonedDateTime.now(Clock.systemUTC()));
-				
-				LOG.info("Click [" + xy.getX() + "," + xy.getY() + "] --> [" + latLong.getX() + "," + latLong.getY()
-						+ "] -- exposure = " + exposure);
-				pool.retireInstance(xy);
-				pool.retireInstance(latLong);
+				else if (e.getButton() == MouseEvent.BUTTON3)
+					mapPopupMenu.show(e.getComponent(), e.getX(), e.getY());
 			}
 			
 		});
@@ -403,5 +466,133 @@ public class MapDisplay extends Canvas {
 		} catch (InterruptedException e) {
 			
 		}
+	}
+	
+	/**
+	 * Given a point on the map, expressed as a fraction in [0,1] starting from
+	 * bottom-left (i.e., south-west in most map-projections).
+	 * 
+	 * @param x
+	 * @param y
+	 */
+	private void logMapLatLong(double x, double y) {
+		
+		final Pool<DoublePair> pool = Pools.getPool(DoublePair.class);
+		final DoublePair xy = pool.getInstance();
+		xy.set(x, y);
+		final DoublePair latLong = projection.transformXY_LatLong(xy);
+		
+		final double exposure = calculateSunExposure(latLong, ZonedDateTime.now(Clock.systemUTC()));
+		
+		LOG.info("Click [" + xy.getX() + "," + xy.getY() + "] --> [" + latLong.getX() + "," + latLong.getY()
+				+ "] -- exposure = " + exposure);
+		pool.retireInstance(xy);
+		pool.retireInstance(latLong);
+	}
+	
+	/**
+	 * Given a {@link BufferedImage}, perform the following:
+	 * 
+	 * <ul>
+	 * <li>Determine which, if any, {@link ImageIO} writers can support writing this
+	 * image</li>
+	 * <li>Present a dialog so the user can select an appropriate file-name to save
+	 * the image as</li>
+	 * <li>If the user did not provide an extension, pick one from among the list of
+	 * valid image-formats</li>
+	 * <li>Save the image</li>
+	 * </ul>
+	 * 
+	 * @param image
+	 * @throws IllegalArgumentException
+	 *             if the given image cannot be accepted by any known ImageWriters
+	 * @throws IOException
+	 *             if the image-file could not be written successfully
+	 */
+	private void saveImageWithDialog(BufferedImage image) throws IOException, IllegalArgumentException {
+		
+		//
+		// Determine which image-writers, if any, are capable of writing our image.
+		//
+		final ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(image);
+		
+		final Set<ImageWriter> validImageWriters = new LinkedHashSet<>();
+		for (String formatName : ImageIO.getWriterFormatNames())
+			Iterators.addAll(validImageWriters, ImageIO.getImageWriters(imageTypeSpecifier, formatName));
+		
+		if (validImageWriters.isEmpty())
+			throw new IllegalArgumentException("Cannot save given image: no ImageWriters can accept it.");
+			
+		//
+		// Construct our list of image-format names and extensions.
+		//
+		final Set<String> extensions = new LinkedHashSet<>();
+		final Map<String, Set<ImageWriter>> extensionsImageWriters = new HashMap<>();
+		
+		for (ImageWriter iw : validImageWriters) {
+			for (String suffix : iw.getOriginatingProvider().getFileSuffixes()) {
+				extensions.add(suffix);
+				extensionsImageWriters.computeIfAbsent(suffix, (s) -> new HashSet<>()).add(iw);
+			}
+		}
+		
+		final StringBuilder description = new StringBuilder();
+		for (String ext : extensions) {
+			if (description.length() > 1)
+				description.append(';');
+			description.append("*.").append(ext);
+		}
+		description.append(')');
+		
+		//
+		// Present the save-file picker
+		//
+		
+		final JFileChooser saveFileChooser = new JFileChooser();
+		saveFileChooser.setFileFilter(
+				new FileNameExtensionFilter("Images (" + description.toString(), extensions.toArray(len -> {
+					return new String[len];
+				})));
+		
+		//
+		// If the user did not choose "OK", then we don't need to go any further.
+		//
+		if (saveFileChooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION)
+			return;
+			
+		//
+		// Examine the selected file. See if it ends with one of our identified
+		// suffixes.
+		// At the same time, identify the format-name associated with the chosen
+		// suffix (if any).
+		//
+		File saveFile = saveFileChooser.getSelectedFile();
+		final String saveFileName = saveFile.getName();
+		
+		final String formatName;
+		
+		final String selectedExtension = extensions.stream().filter(ext -> saveFileName.toLowerCase().endsWith(ext))
+				.findFirst().orElse(null);
+		
+		if (selectedExtension == null) {
+			//
+			// Apparently the user did not include an extension.
+			// Therefore, we are free to choose any extension we please.
+			//
+			final ImageWriter anyImageWriter = validImageWriters.iterator().next();
+			final String anyExtension = anyImageWriter.getOriginatingProvider().getFileSuffixes()[0];
+			formatName = anyImageWriter.getOriginatingProvider().getFormatNames()[0];
+			
+			saveFile = new File(saveFile.getPath() + "." + anyExtension);
+			
+		} else {
+			formatName = extensionsImageWriters.get(selectedExtension).iterator().next().getOriginatingProvider()
+					.getFormatNames()[0];
+		}
+		
+		//
+		// Now all we have to do is save the image to the specified file.
+		//
+		ImageIO.write(image, formatName, saveFile);
 	}
 }
