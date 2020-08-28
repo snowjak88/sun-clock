@@ -8,16 +8,18 @@
 
 plugins {
 	id 'java'
-    id 'application'
+	id 'application'
+	id 'distribution'
 }
+
+group = 'org.snowjak'
+version = 0.1
 
 application {
 	mainClassName = 'org.snowjak.sunclock.Main'
 }
 
 repositories {
-    // Use jcenter for resolving dependencies.
-    // You can declare any Maven/Ivy/file repository here.
     jcenter()
 }
 
