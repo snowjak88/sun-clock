@@ -4,7 +4,6 @@
 package org.snowjak.sunclock;
 
 import static java.lang.Math.PI;
-import static java.lang.Math.asin;
 import static java.lang.Math.cos;
 import static java.lang.Math.floor;
 import static java.lang.Math.max;
@@ -394,7 +393,7 @@ public class MapDisplay extends Canvas {
 		final double longitude = degreesToRadians(window(latLong.getY(), -180d, +180d));
 		final double nowLocal = nowUTC + (longitude / (2d * PI));
 		final double nowLocalDay = floor(nowLocal);
-		final double nowLocalFractional = nowLocal - nowLocalDay;
+		// final double nowLocalFractional = nowLocal - nowLocalDay;
 		
 		final double longitudeCorrection = degreesToRadians((360d / 364d) * (nowLocal - 81d));
 		// (minutes)
@@ -412,16 +411,18 @@ public class MapDisplay extends Canvas {
 		
 		final double solarDeclination = degreesToRadians(23.45d)
 				* sin(degreesToRadians(360d / 365d * (nowLocalDay - 81d)));
-		final double solarAltitudeAtNoon = (PI / 2d) - latitude + solarDeclination;
+		// final double solarAltitudeAtNoon = (PI / 2d) - latitude + solarDeclination;
 		// final double airMassRatioAtNoon = abs(1d / sin(solarAltitudeAtNoon));
 		
 		final double solarHourAngle = 2d * PI * localTilSolarNoon;
-		final double solarAltitudeNow = asin(
-				cos(latitude) * cos(solarDeclination) * cos(solarHourAngle) + sin(latitude) * sin(solarDeclination));
+		final double sinSolarAltitudeNow = cos(latitude) * cos(solarDeclination) * cos(solarHourAngle)
+				+ sin(latitude) * sin(solarDeclination);
+		// final double solarAltitudeNow = asin(sinSolarAltitudeNow);
 		
-		final double azimuth = asin(cos(solarDeclination) * sin(solarHourAngle) / cos(solarAltitudeNow));
-		final double azimuthEN = PI - azimuth;
-		final double azimuthWS = PI - azimuth - (2d * PI);
+		// final double azimuth = asin(cos(solarDeclination) * sin(solarHourAngle) /
+		// cos(solarAltitudeNow));
+		// final double azimuthEN = PI - azimuth;
+		// final double azimuthWS = PI - azimuth - (2d * PI);
 		
 		// final double solarAzimuthAngle = (cos(solarAltitudeNow) >=
 		// (tan(solarDeclination) / tan(latitude))) ? (azimuth)
@@ -429,7 +430,7 @@ public class MapDisplay extends Canvas {
 		// final double airMassRatioNow = abs(1d / sin(solarAltitudeNow));
 		
 		final double cosAngleOfIncidence = // cos(solarAltitudeNow) * cos(solarAzimuthAngle) * sin(solarAltitudeNow);
-				sin(solarAltitudeNow);
+				sinSolarAltitudeNow;
 		
 		return (cosAngleOfIncidence < 0d) ? 0d : cosAngleOfIncidence;
 	}

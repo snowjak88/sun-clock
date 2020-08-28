@@ -9,7 +9,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.time.ZonedDateTime;
 import java.util.LinkedHashSet;
 import java.util.Properties;
 import java.util.Set;
@@ -186,7 +185,6 @@ public class Options {
 			for (DefinedOption opt : DefinedOption.values())
 				opt.getOption().writeToProperties(properties);
 			
-			final ZonedDateTime now = ZonedDateTime.now();
 			properties.store(propertiesStream, "sun-clock application properties");
 			
 		} catch (IOException e) {
@@ -221,6 +219,7 @@ public class Options {
 		 * @param propertyReader
 		 *            a method for converting Properties into an instance of this option
 		 */
+		@SuppressWarnings("unused")
 		public Option(BiConsumer<T, Properties> propertyWriter, Function<Properties, T> propertyReader) {
 			
 			this(propertyWriter, propertyReader, null);

@@ -13,7 +13,10 @@ plugins {
 }
 
 group = 'org.snowjak'
-version = 0.1
+version = '0.1.1'
+
+sourceCompatibility = '1.9'
+targetCompatibility = '1.9'
 
 application {
 	mainClassName = 'org.snowjak.sunclock.Main'

@@ -31,7 +31,7 @@ import org.snowjak.sunclock.pool.Pools;
  */
 public enum Projection {
 	
-	EQUIRECTANGULAR("projections/equirectangular.JPG", "Equirectangular", -90, +90, (latlng) -> {
+	EQUIRECTANGULAR("projections/equirectangular.jpg", "Equirectangular", -90, +90, (latlng) -> {
 		//
 		// lat/long in [-90,+90] and [-180,180]
 		// yields x/y in [0,1] and [0,1]
@@ -53,7 +53,7 @@ public enum Projection {
 		result.set(window(radiansToDegrees(lat), -90, +90), window(radiansToDegrees(lng), -180, 180));
 		return result;
 	}),
-	WEB_MERCATOR("projections/web-mercator.JPG", "Web Mercator", -85.051129, +85.051129, (latlng) -> {
+	WEB_MERCATOR("projections/web-mercator.jpg", "Web Mercator", -85.051129, +85.051129, (latlng) -> {
 		//
 		// lat/long in [-85.051129,+85.051129] and [-180,180]
 		// yields x/y in [0,1] and [0,1]
